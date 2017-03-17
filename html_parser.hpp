@@ -46,11 +46,11 @@ public:
      */
     typedef std::vector<shared_ptr<HtmlElement> >::const_iterator ChildIterator;
 
-    const ChildIterator &ChildBegin() {
+    const ChildIterator ChildBegin() {
         return children.begin();
     }
 
-    const ChildIterator &ChildEnd() {
+    const ChildIterator ChildEnd() {
         return children.end();
     }
 
@@ -59,11 +59,11 @@ public:
      */
     typedef std::map<std::string, std::string>::const_iterator AttributeIterator;
 
-    const AttributeIterator &AttributeBegin() {
+    const AttributeIterator AttributeBegin() {
         return attribute.begin();
     }
 
-    const AttributeIterator &AttributeEnd() {
+    const AttributeIterator AttributeEnd() {
         return attribute.end();
     }
 
@@ -112,7 +112,7 @@ public:
 private:
     static shared_ptr<HtmlElement>
     GetElementById(const shared_ptr<HtmlElement> &element, const std::string &id) {
-        for (HtmlElement::Iterator it = element->children.begin(); it != element->children.end(); ++it) {
+        for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
             if ((*it)->GetAttribute("id") == id)
                 return *it;
 
@@ -126,7 +126,7 @@ private:
 
     static void GetElementByClassName(const shared_ptr<HtmlElement> &element, const std::string &name,
                                       std::vector<shared_ptr<HtmlElement> > &result) {
-        for (HtmlElement::Iterator it = element->children.begin(); it != element->children.end(); ++it) {
+        for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
             std::string str_t((*it)->GetAttribute("class"));
             char *temp = NULL;
             char *p = strtok_r((char *) str_t.c_str(), " ", &temp);
@@ -142,7 +142,7 @@ private:
 
     static void GetElementByTagName(const shared_ptr<HtmlElement> &element, const std::string &name,
                                     std::vector<shared_ptr<HtmlElement> > &result) {
-        for (HtmlElement::Iterator it = element->children.begin(); it != element->children.end(); ++it) {
+        for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
             if ((*it)->name == name)
                 result.push_back(*it);
 
@@ -277,13 +277,19 @@ private:
  */
 class HtmlParser {
 public:
+    /**
+     * parse html by C-Style data
+     * @param data
+     * @param len
+     * @return html document object
+     */
     shared_ptr<HtmlDocument> Parse(const char *data, size_t len) {
-        stream_.append(data, len);
-        size_t length = stream_.size();
+        stream_ = data;
+        length_ = len;
         size_t index = 0;
         root_.reset(new HtmlElement());
-        while (length > index) {
-            char input = stream_.at(index);
+        while (length_ > index) {
+            char input = stream_[index];
             if (input == '\r' || input == '\n' || input == '\t' || input == ' ') {
                 index++;
             } else if (input == '<') {
@@ -296,13 +302,21 @@ public:
         return shared_ptr<HtmlDocument>(new HtmlDocument(root_));
     }
 
+    /**
+     * parse html by string data
+     * @param data
+     * @return html document object
+     */
+    shared_ptr<HtmlDocument> Parse(const std::string &data) {
+        return Parse(data.data(), data.size());
+    }
+
 private:
     size_t ParseElement(size_t index, shared_ptr<HtmlElement> &element) {
-        size_t length = stream_.size();
-        while (length > index) {
-            char input = stream_.at(index + 1);
+        while (length_ > index) {
+            char input = stream_[index + 1];
             if (input == '!') {
-                if (strncmp(stream_.c_str() + index, "<!--", 4) == 0) {
+                if (strncmp(stream_ + index, "<!--", 4) == 0) {
                     return SkipUntil(index + 2, "-->");
                 } else {
                     return SkipUntil(index + 2, '>');
@@ -326,11 +340,11 @@ private:
             index++;
             char split = 0;
             std::string attr;
-            size_t length = stream_.size();
-            while (length > index) {
+
+            while (length_ > index) {
                 switch (state) {
                     case PARSE_ELEMENT_TAG: {
-                        char input = stream_.at(index);
+                        char input = stream_[index];
                         if (input == ' ' || input == '\r' || input == '\n' || input == '\t') {
                             if (!self->name.empty()) {
                                 state = PARSE_ELEMENT_ATTR;
@@ -344,16 +358,16 @@ private:
                             state = PARSE_ELEMENT_VALUE;
                             index++;
                         } else {
-                            self->name.append(stream_.c_str() + index, 1);
+                            self->name.append(stream_ + index, 1);
                             index++;
                         }
                     }
                         break;
 
                     case PARSE_ELEMENT_ATTR: {
-                        char input = stream_.at(index);
+                        char input = stream_[index];
                         if (input == '>') {
-                            if (stream_.at(index - 1) == '/') {
+                            if (stream_[index - 1] == '/') {
                                 attr.erase(attr.size() - 1);
                                 self->Parse(attr);
                                 element->children.push_back(self);
@@ -362,7 +376,7 @@ private:
                             state = PARSE_ELEMENT_VALUE;
                             index++;
                         } else {
-                            attr.append(stream_.c_str() + index, 1);
+                            attr.append(stream_ + index, 1);
                             index++;
                         }
                     }
@@ -375,22 +389,22 @@ private:
                             size_t pre = index;
                             index = SkipUntil(index, close.c_str());
                             if (index > (pre + close.size()))
-                                self->value.append(stream_.c_str() + pre, index - pre - close.size());
+                                self->value.append(stream_ + pre, index - pre - close.size());
 
                             self->Parse(attr);
                             element->children.push_back(self);
                             return index;
                         }
 
-                        char input = stream_.at(index);
+                        char input = stream_[index];
                         if (input == '<') {
-                            if (stream_.at(index + 1) == '/') {
+                            if (stream_[index + 1] == '/') {
                                 state = PARSE_ELEMENT_TAG_END;
                             } else {
                                 index = ParseElement(index, self);
                             }
                         } else if (input != '\r' && input != '\n' && input != '\t') {
-                            self->value.append(stream_.c_str() + index, 1);
+                            self->value.append(stream_ + index, 1);
                             index++;
                         } else {
                             index++;
@@ -401,14 +415,14 @@ private:
                     case PARSE_ELEMENT_TAG_END: {
                         index += 2;
                         std::string selfname = self->name + ">";
-                        if (strncmp(stream_.c_str() + index, selfname.c_str(), selfname.size())) {
+                        if (strncmp(stream_ + index, selfname.c_str(), selfname.size())) {
                             int pre = index;
                             index = SkipUntil(index, ">");
                             std::string value;
                             if (index > (pre + 1))
-                                value.append(stream_.c_str() + pre, index - pre - 1);
+                                value.append(stream_ + pre, index - pre - 1);
                             else
-                                value.append(stream_.c_str() + pre, index - pre);
+                                value.append(stream_ + pre, index - pre);
 
                             shared_ptr<HtmlElement> parent = self->GetParent();
                             while (parent) {
@@ -436,9 +450,8 @@ private:
     }
 
     size_t SkipUntil(size_t index, const char *data) {
-        size_t length = stream_.size();
-        while (length > index) {
-            if (strncmp(stream_.c_str() + index, data, strlen(data)) == 0) {
+        while (length_ > index) {
+            if (strncmp(stream_ + index, data, strlen(data)) == 0) {
                 return index + strlen(data);
             } else {
                 index++;
@@ -447,9 +460,8 @@ private:
     }
 
     size_t SkipUntil(size_t index, const char data) {
-        size_t length = stream_.size();
-        while (length > index) {
-            if (stream_.at(index) == data) {
+        while (length_ > index) {
+            if (stream_[index] == data) {
                 return ++index;
             } else {
                 index++;
@@ -458,7 +470,8 @@ private:
     }
 
 private:
-    std::string stream_;
+    const char *stream_;
+    size_t length_;
     shared_ptr<HtmlElement> root_;
 };
 

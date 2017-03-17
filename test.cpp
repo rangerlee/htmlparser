@@ -6,11 +6,11 @@ int main() {
     shared_ptr<HtmlDocument> doc = parser.Parse(data.c_str(), data.size());
 
     std::vector<std::shared_ptr<HtmlElement>> x = doc->GetElementByClassName("x");
-    std::vector<std::shared_ptr<HtmlElement>> b = doc->GetElementById("b");
+    std::shared_ptr<HtmlElement> b = doc->GetElementById("b");
     
-	if(x){
-		std::cout << x->GetName() << std::endl;
-		std::cout << x->GetAttribute("id") << std::endl;
+	if(!x.empty()){
+		std::cout << x[0]->GetName() << std::endl;
+		std::cout << x[0]->GetAttribute("id") << std::endl;
 	}
 	
 	if(b){
