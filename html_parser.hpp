@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 rangerlee (rangerlee@foxmail.com)
+ * Copyright (c) 2017 SPLI (rangerlee@foxmail.com)
  * Latest version available at: http://github.com/rangerlee/htmlparser.git
  *
  * A Simple html parser.
@@ -15,9 +15,14 @@
 #include <cstring>
 #include <vector>
 #include <map>
+#include <set>
 
 #if __cplusplus <= 199711L
+#if linux
 #include <tr1/memory>
+#else
+#include <memory>
+#endif
 using std::tr1::enable_shared_from_this;
 using std::tr1::shared_ptr;
 using std::tr1::weak_ptr;
@@ -129,11 +134,19 @@ private:
         for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
             std::string str_t((*it)->GetAttribute("class"));
             char *temp = NULL;
+#if linux
             char *p = strtok_r((char *) str_t.c_str(), " ", &temp);
+#else 
+            char *p = strtok_s((char *) str_t.c_str(), " ", &temp);
+#endif
             while (p) {
                 if (strcmp(p, name.c_str()) == 0)
                     result.push_back(*it);
+#if linux
                 p = strtok_r(NULL, " ", &temp);
+#else 
+                p = strtok_s(NULL, " ", &temp);
+#endif
             }
 
             GetElementByClassName(*it, name, result);
@@ -154,6 +167,7 @@ private:
         size_t index = 0;
         std::string k;
         std::string v;
+		char split = 0;
 
         enum ParseAttrState {
             PARSE_ATTR_KEY,
@@ -165,8 +179,7 @@ private:
         ParseAttrState state = PARSE_ATTR_KEY;
 
         while (attr.size() > index) {
-            char input = attr.at(index);
-            char split;
+            char input = attr.at(index);            
             switch (state) {
                 case PARSE_ATTR_KEY: {
                     if (input == '\t' || input == '\r' || input == '\n') {
@@ -182,7 +195,7 @@ private:
                         k.append(attr.c_str() + index, 1);
                     }
                 }
-                    break;
+                break;
 
                 case PARSE_ATTR_VALUE: {
                     if (input == '\t' || input == '\r' || input == '\n') {
@@ -194,7 +207,7 @@ private:
                         v.append(attr.c_str() + index, 1);
                     }
                 }
-                    break;
+                break;
 
                 case PARSE_ATTR_KEY_END: {
                     if (input == '\t' || input == '\r' || input == '\n' || input == ' ') {
@@ -209,7 +222,7 @@ private:
                         k.append(attr.c_str() + index, 1);
                     }
                 }
-                    break;
+                break;
 
                 case PARSE_ATTR_VALUE_END: {
                     if (input == split) {
@@ -221,7 +234,7 @@ private:
                         v.append(attr.c_str() + index, 1);
                     }
                 }
-                    break;
+                break;
             }
 
             index++;
@@ -277,6 +290,12 @@ private:
  */
 class HtmlParser {
 public:
+    HtmlParser() {
+        static const std::string token[] = { "br", "hr", "img", "input", "link", "meta",
+        "area", "base", "col", "command", "embed", "keygen", "param", "source", "track", "wbr"};
+        self_closed_token_.insert(token, token + sizeof(token) / sizeof(token[0]));
+    }
+
     /**
      * parse html by C-Style data
      * @param data
@@ -355,6 +374,10 @@ private:
                             element->children.push_back(self);
                             return SkipUntil(index, '>');
                         } else if (input == '>') {
+                            if(self_closed_token_.find(self->name) != self_closed_token_.end()) {
+                                element->children.push_back(self);
+                                return ++index;
+                            }
                             state = PARSE_ELEMENT_VALUE;
                             index++;
                         } else {
@@ -362,13 +385,17 @@ private:
                             index++;
                         }
                     }
-                        break;
+                    break;
 
                     case PARSE_ELEMENT_ATTR: {
                         char input = stream_[index];
                         if (input == '>') {
                             if (stream_[index - 1] == '/') {
                                 attr.erase(attr.size() - 1);
+                                self->Parse(attr);
+                                element->children.push_back(self);
+                                return ++index;
+                            } else if(self_closed_token_.find(self->name) != self_closed_token_.end()) {
                                 self->Parse(attr);
                                 element->children.push_back(self);
                                 return ++index;
@@ -380,7 +407,7 @@ private:
                             index++;
                         }
                     }
-                        break;
+                    break;
 
                     case PARSE_ELEMENT_VALUE: {
                         if (self->name == "script" || self->name == "noscript" || self->name == "style") {
@@ -410,7 +437,7 @@ private:
                             index++;
                         }
                     }
-                        break;
+                    break;
 
                     case PARSE_ELEMENT_TAG_END: {
                         index += 2;
@@ -443,10 +470,12 @@ private:
                             return SkipUntil(index, '>');
                         }
                     }
-                        break;
+                    break;
                 }
             }
         }
+        
+        return index;
     }
 
     size_t SkipUntil(size_t index, const char *data) {
@@ -457,6 +486,8 @@ private:
                 index++;
             }
         }
+        
+        return index;
     }
 
     size_t SkipUntil(size_t index, const char data) {
@@ -467,11 +498,14 @@ private:
                 index++;
             }
         }
+        
+        return index;
     }
 
 private:
     const char *stream_;
     size_t length_;
+    std::set<std::string> self_closed_token_;
     shared_ptr<HtmlElement> root_;
 };
 
