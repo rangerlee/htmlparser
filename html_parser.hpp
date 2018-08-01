@@ -164,7 +164,7 @@ private:
         size_t index = 0;
         std::string k;
         std::string v;
-		char split = 0;
+        char split = 0;
 
         enum ParseAttrState {
             PARSE_ATTR_KEY,
@@ -245,23 +245,20 @@ private:
     }
 
     static std::set<std::string> SplitClassName(const std::string& name){
-        std::set<std::string> class_name;
+#if defined(WIN32)
+#define strtok_ strtok_s
+#else
+#define strtok_ strtok_r
+#endif
+        std::set<std::string> class_names;
         char *temp = NULL;
-#if linux
-        char *p = strtok_r((char *)name.c_str(), " ", &temp);
-#else 
-        char *p = strtok_s((char *)name.c_str(), " ", &temp);
-#endif
+        char *p = strtok_((char *)name.c_str(), " ", &temp);
         while (p) {
-            class_name.insert(p);
-#if linux
-            p = strtok_r(NULL, " ", &temp);
-#else 
-            p = strtok_s(NULL, " ", &temp);
-#endif
+            class_names.insert(p);
+            p = strtok_(NULL, " ", &temp);
         }
 
-        return class_name;
+        return class_names;
     }
 
 private:
@@ -310,7 +307,7 @@ public:
     HtmlParser() {
         static const std::string token[] = { "br", "hr", "img", "input", "link", "meta",
         "area", "base", "col", "command", "embed", "keygen", "param", "source", "track", "wbr"};
-        self_closed_token_.insert(token, token + sizeof(token) / sizeof(token[0]));
+        self_closing_tags_.insert(token, token + sizeof(token) / sizeof(token[0]));
     }
 
     /**
@@ -391,7 +388,7 @@ private:
                             element->children.push_back(self);
                             return SkipUntil(index, '>');
                         } else if (input == '>') {
-                            if(self_closed_token_.find(self->name) != self_closed_token_.end()) {
+                            if(self_closing_tags_.find(self->name) != self_closing_tags_.end()) {
                                 element->children.push_back(self);
                                 return ++index;
                             }
@@ -412,7 +409,7 @@ private:
                                 self->Parse(attr);
                                 element->children.push_back(self);
                                 return ++index;
-                            } else if(self_closed_token_.find(self->name) != self_closed_token_.end()) {
+                            } else if(self_closing_tags_.find(self->name) != self_closing_tags_.end()) {
                                 self->Parse(attr);
                                 element->children.push_back(self);
                                 return ++index;
@@ -522,7 +519,7 @@ private:
 private:
     const char *stream_;
     size_t length_;
-    std::set<std::string> self_closed_token_;
+    std::set<std::string> self_closing_tags_;
     shared_ptr<HtmlElement> root_;
 };
 
