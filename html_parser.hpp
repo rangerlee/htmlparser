@@ -132,21 +132,18 @@ private:
     static void GetElementByClassName(const shared_ptr<HtmlElement> &element, const std::string &name,
                                       std::vector<shared_ptr<HtmlElement> > &result) {
         for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
-            std::string str_t((*it)->GetAttribute("class"));
-            char *temp = NULL;
-#if linux
-            char *p = strtok_r((char *) str_t.c_str(), " ", &temp);
-#else 
-            char *p = strtok_s((char *) str_t.c_str(), " ", &temp);
-#endif
-            while (p) {
-                if (strcmp(p, name.c_str()) == 0)
-                    result.push_back(*it);
-#if linux
-                p = strtok_r(NULL, " ", &temp);
-#else 
-                p = strtok_s(NULL, " ", &temp);
-#endif
+            std::set<std::string> attr_class = SplitClassName((*it)->GetAttribute("class"));
+            std::set<std::string> class_name = SplitClassName(name);
+
+            std::set<std::string>::const_iterator iter = class_name.begin();
+            for(; iter != class_name.end(); ++iter){
+                if(attr_class.find(*iter) == attr_class.end()){
+                    break;
+                }
+            }
+
+            if(iter == class_name.end()){
+                result.push_back(*it);
             }
 
             GetElementByClassName(*it, name, result);
@@ -245,6 +242,26 @@ private:
             value.erase(0, value.find_first_not_of(" "));
             value.erase(value.find_last_not_of(" ") + 1);
         }
+    }
+
+    static std::set<std::string> SplitClassName(const std::string& name){
+        std::set<std::string> class_name;
+        char *temp = NULL;
+#if linux
+        char *p = strtok_r((char *)name.c_str(), " ", &temp);
+#else 
+        char *p = strtok_s((char *)name.c_str(), " ", &temp);
+#endif
+        while (p) {
+            class_name.insert(p);
+#if linux
+            p = strtok_r(NULL, " ", &temp);
+#else 
+            p = strtok_s(NULL, " ", &temp);
+#endif
+        }
+
+        return class_name;
     }
 
 private:
