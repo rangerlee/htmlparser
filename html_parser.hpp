@@ -164,65 +164,58 @@ private:
         size_t index = 0;
         std::string k;
         std::string v;
-        char split = 0;
+        char split = ' ';
+        bool quota = false;
 
         enum ParseAttrState {
             PARSE_ATTR_KEY,
-            PARSE_ATTR_VALUE,
-            PARSE_ATTR_KEY_END,
+            PARSE_ATTR_VALUE_BEGIN,
             PARSE_ATTR_VALUE_END,
         };
 
         ParseAttrState state = PARSE_ATTR_KEY;
 
         while (attr.size() > index) {
-            char input = attr.at(index);            
+            char input = attr.at(index);
             switch (state) {
                 case PARSE_ATTR_KEY: {
                     if (input == '\t' || input == '\r' || input == '\n') {
                     } else if (input == '\'' || input == '"') {
                         std::cerr << "WARN : attribute unexpected " << input << std::endl;
                     } else if (input == ' ') {
-                        if (k.size()) {
-                            state = PARSE_ATTR_KEY_END;
+                        if (!k.empty()) {
+                            attribute[k] = v;
+                            k.clear();
                         }
                     } else if (input == '=') {
-                        state = PARSE_ATTR_VALUE;
+                        state = PARSE_ATTR_VALUE_BEGIN;
                     } else {
                         k.append(attr.c_str() + index, 1);
                     }
                 }
                 break;
 
-                case PARSE_ATTR_VALUE: {
-                    if (input == '\t' || input == '\r' || input == '\n') {
-
+                case PARSE_ATTR_VALUE_BEGIN:{
+                    if (input == '\t' || input == '\r' || input == '\n' || input == ' ') {
+                        if (!k.empty()) {
+                            attribute[k] = v;
+                            k.clear();
+                        }
+                        state = PARSE_ATTR_KEY;
                     } else if (input == '\'' || input == '"') {
                         split = input;
+                        quota = true;
                         state = PARSE_ATTR_VALUE_END;
                     } else {
                         v.append(attr.c_str() + index, 1);
-                    }
-                }
-                break;
-
-                case PARSE_ATTR_KEY_END: {
-                    if (input == '\t' || input == '\r' || input == '\n' || input == ' ') {
-
-                    } else if (input == '=') {
-                        state = PARSE_ATTR_VALUE;
-                    } else {
-                        attribute[k] = v;
-                        k.clear();
-                        v.clear();
-                        state = PARSE_ATTR_KEY;
-                        k.append(attr.c_str() + index, 1);
+                        quota = false;
+                        state = PARSE_ATTR_VALUE_END;
                     }
                 }
                 break;
 
                 case PARSE_ATTR_VALUE_END: {
-                    if (input == split) {
+                    if((quota && input == split) || (!quota && (input == '\t' || input == '\r' || input == '\n' || input == ' '))) {
                         attribute[k] = v;
                         k.clear();
                         v.clear();
@@ -235,6 +228,10 @@ private:
             }
 
             index++;
+        }
+
+        if(!k.empty()){
+            attribute[k] = v;
         }
 
         //trim
