@@ -114,6 +114,36 @@ public:
         return name;
     }
 
+    void HtmlStylize(std::string& str) {
+        if (name.empty()) {
+            for (size_t i = 0; i < children.size(); i++) {
+                children[i]->HtmlStylize(str);
+            }
+
+            return;
+        } else if(name == "plain"){
+            str.append(value);
+            return;
+        }
+
+        str.append("<" + name);
+        std::map<std::string, std::string>::const_iterator it = attribute.begin();
+        for (; it != attribute.end(); it++) {
+            str.append(" " + it->first + "=\"" + it->second + "\"");
+        }
+        str.append(">");
+        
+        if (children.empty()) {
+            str.append(value);            
+        } else {
+            for (size_t i = 0; i < children.size(); i++) {
+                children[i]->HtmlStylize(str);
+            }
+        }
+
+        str.append("</" + name + ">");
+    }
+
 private:
     static shared_ptr<HtmlElement>
     GetElementById(const shared_ptr<HtmlElement> &element, const std::string &id) {
@@ -291,6 +321,12 @@ public:
         return result;
     }
 
+    std::string html() {
+        std::string s;
+        root_->HtmlStylize(s);
+        return s;
+    }
+
 private:
     shared_ptr<HtmlElement> root_;
 };
@@ -436,6 +472,13 @@ private:
 
                         char input = stream_[index];
                         if (input == '<') {
+                            if (!self->value.empty()) {
+                                shared_ptr<HtmlElement> child(new HtmlElement(self));
+                                child->name = "plain";
+                                child->value.swap(self->value);
+                                self->children.push_back(child);
+                            }
+
                             if (stream_[index + 1] == '/') {
                                 state = PARSE_ELEMENT_TAG_END;
                             } else {
