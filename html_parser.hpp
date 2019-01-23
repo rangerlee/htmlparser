@@ -90,16 +90,169 @@ public:
         return GetElementById(shared_from_this(), id);
     }
 
-    std::vector<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
-        std::vector<shared_ptr<HtmlElement> > result;
+    std::set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
+        std::set<shared_ptr<HtmlElement> > result;
         HtmlElement::GetElementByClassName(shared_from_this(), name, result);
         return result;
     }
 
-    std::vector<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
-        std::vector<shared_ptr<HtmlElement> > result;
+    std::set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
+        std::set<shared_ptr<HtmlElement> > result;
         HtmlElement::GetElementByTagName(shared_from_this(), name, result);
         return result;
+    }
+
+    void SelectElement(const std::string& rule, std::set<shared_ptr<HtmlElement> >& result){
+        if(rule.empty() || rule.at(0) != '/' || name == "plain") return;
+        std::string::size_type pos = 0;
+        if(rule.size() >= 2 && rule.at(1) == '/') {
+            std::set<shared_ptr<HtmlElement> > temp;
+            GetAllElement(temp);
+            pos = 1;
+            std::string next = rule.substr(pos);
+            if(next.empty()) {
+                for(std::set<shared_ptr<HtmlElement> >::const_iterator i = temp.begin(); i != temp.end(); i++){
+                    result.insert(*i);
+                }
+            } else {
+                for(std::set<shared_ptr<HtmlElement> >::const_iterator i = temp.begin(); i != temp.end(); i++){
+                    (*i)->SelectElement(next, result);;
+                }
+            }
+        } else {
+            std::string::size_type p = rule.find('/', 1);
+            std::string line;
+            if(p == std::string::npos) {
+                line = rule;
+                pos = rule.size();
+            } else {
+                line = rule.substr(0, p);
+                pos = p;
+            }
+
+            enum { x_ele, x_wait_attr, x_attr, x_val };
+            std::string ele, attr, oper, val, cond;
+            int state = x_ele;
+            for(p = 1; p < pos; ) {
+                char c = line.at(p++);
+                switch (state) {
+                    case x_ele: {
+                        if(c == '@') {
+                            state = x_attr;
+                        } else if(c == '!') {
+                            state = x_wait_attr;
+                            cond.append(1,c);
+                        } else if(c == '[') {
+                            state = x_wait_attr;
+                        } else {
+                            ele.append(1,c);
+                        }
+                    }
+                    break;
+
+                    case x_wait_attr: {
+                        if(c == '@') state = x_attr;
+                        else if(c == '!') {
+                            cond.append(1,c);
+                        }
+                    }
+                    break;
+
+                    case x_attr: {
+                        if(c == '!') {
+                            oper.append(1,c);
+                        } else if(c == '=') {
+                            oper.append(1,c);
+                            state = x_val;
+                        } else if(c == ']') {
+                            state = x_ele;
+                        } else {
+                            attr.append(1,c);
+                        }
+                    }
+                    break;
+
+                    case x_val: {
+                        if(c == ']') {
+                            state = x_ele;
+                        } else {
+                            val.append(1,c);
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if(!val.empty() && val.at(0) == '\''){
+                val.erase(val.begin());
+            }
+
+            if(!val.empty() && val.at(val.size() - 1) == '\''){
+                val.pop_back();
+            }
+
+            bool matched = true;
+            if(!ele.empty()){
+                if(name != ele) {
+                    matched = false;
+                }
+            }
+
+            if(cond == "!"){
+                if(!attr.empty() && matched){
+                    if(!oper.empty()){
+                        std::string v = attribute[attr];
+                        if(oper == "="){
+                            if(v == val) matched = false;
+                            if (attr == "class") {
+                                std::set<std::string> attr_class = SplitClassName(GetAttribute("class"));
+                                if (attr_class.find(val) != attr_class.end()) matched = false;
+                            }
+                        } else if (oper == "!=") {
+                            if (v == val) matched = false;
+                            if (attr == "class") {
+                                std::set<std::string> attr_class = SplitClassName(GetAttribute("class"));
+                                if (attr_class.find(val) == attr_class.end()) matched = false;
+                            }
+                        }
+                    } else {
+                        if(attribute.find(attr) != attribute.end()) matched = false;
+                    }
+                }
+            } else {
+                if (!attr.empty() && matched) {
+                    if (attribute.find(attr) == attribute.end()) {
+                        matched = false;
+                    } else {
+                        std::string v = attribute[attr];
+                        if (oper == "=") {
+                            if (v != val) matched = false;
+                            if (attr == "class") {
+                                std::set<std::string> attr_class = SplitClassName(GetAttribute("class"));
+                                if (attr_class.find(val) == attr_class.end()) matched = false;
+                            }
+                        } else if (oper == "!=") {
+                            if (v == val) matched = false;
+                            if (attr == "class") {
+                                std::set<std::string> attr_class = SplitClassName(GetAttribute("class"));
+                                if (attr_class.find(val) != attr_class.end()) matched = false;
+                            }
+                        }
+                    }
+                }
+            }
+
+            std::string next = rule.substr(pos);
+            if(matched) {
+                if(next.empty())
+                    result.insert(shared_from_this());
+                else {
+                    for(ChildIterator it = ChildBegin(); it != ChildEnd(); it++){
+                        (*it)->SelectElement(next, result);
+                    }
+                }
+            }
+        };
     }
 
     shared_ptr<HtmlElement> GetParent() {
@@ -107,11 +260,38 @@ public:
     }
 
     const std::string &GetValue() {
+        if(value.empty() && children.size() == 1 && children[0]->GetName() == "plain"){
+            return children[0]->GetValue();
+        }
+
         return value;
     }
 
     const std::string &GetName() {
         return name;
+    }
+
+    std::string text(){
+        std::string str;
+        PlainStylize(str);
+        return str;
+    }
+
+    void PlainStylize(std::string& str){
+        if(name == "plain"){
+            str.append(value);
+            return;
+        }
+
+        for (size_t i = 0; i < children.size(); i++) {
+            children[i]->PlainStylize(str);
+        }
+    }
+
+    std::string html(){
+        std::string str;
+        HtmlStylize(str);
+        return str;
     }
 
     void HtmlStylize(std::string& str) {
@@ -160,7 +340,7 @@ private:
     }
 
     static void GetElementByClassName(const shared_ptr<HtmlElement> &element, const std::string &name,
-                                      std::vector<shared_ptr<HtmlElement> > &result) {
+                                      std::set<shared_ptr<HtmlElement> > &result) {
         for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
             std::set<std::string> attr_class = SplitClassName((*it)->GetAttribute("class"));
             std::set<std::string> class_name = SplitClassName(name);
@@ -173,7 +353,7 @@ private:
             }
 
             if(iter == class_name.end()){
-                result.push_back(*it);
+                result.insert(*it);
             }
 
             GetElementByClassName(*it, name, result);
@@ -181,12 +361,19 @@ private:
     }
 
     static void GetElementByTagName(const shared_ptr<HtmlElement> &element, const std::string &name,
-                                    std::vector<shared_ptr<HtmlElement> > &result) {
+                                    std::set<shared_ptr<HtmlElement> > &result) {
         for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
             if ((*it)->name == name)
-                result.push_back(*it);
+                result.insert(*it);
 
             GetElementByTagName(*it, name, result);
+        }
+    }
+
+    void GetAllElement(std::set<shared_ptr<HtmlElement> >& result){
+        for (int i = 0; i < children.size(); ++i) {
+            children[i]->GetAllElement(result);
+            result.insert(children[i]);
         }
     }
 
@@ -309,15 +496,25 @@ public:
         return HtmlElement::GetElementById(root_, id);
     }
 
-    std::vector<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
-        std::vector<shared_ptr<HtmlElement> > result;
+    std::set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
+        std::set<shared_ptr<HtmlElement> > result;
         HtmlElement::GetElementByClassName(root_, name, result);
         return result;
     }
 
-    std::vector<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
-        std::vector<shared_ptr<HtmlElement> > result;
+    std::set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
+        std::set<shared_ptr<HtmlElement> > result;
         HtmlElement::GetElementByTagName(root_, name, result);
+        return result;
+    }
+
+    std::set<shared_ptr<HtmlElement> > SelectElement(const std::string& rule){
+        std::set<shared_ptr<HtmlElement> > result;
+        HtmlElement::ChildIterator it = root_->ChildBegin();
+        for(; it != root_->ChildEnd(); it++){
+            (*it)->SelectElement(rule, result);
+        }
+
         return result;
     }
 
