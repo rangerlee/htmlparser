@@ -87,18 +87,18 @@ public:
     }
 
     shared_ptr<HtmlElement> GetElementById(const std::string &id) {
-        return GetElementById(shared_from_this(), id);
+        return GetElementById(id);
     }
 
     std::set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
         std::set<shared_ptr<HtmlElement> > result;
-        HtmlElement::GetElementByClassName(shared_from_this(), name, result);
+        GetElementByClassName(name, result);
         return result;
     }
 
     std::set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
         std::set<shared_ptr<HtmlElement> > result;
-        HtmlElement::GetElementByTagName(shared_from_this(), name, result);
+        GetElementByTagName(name, result);
         return result;
     }
 
@@ -278,6 +278,10 @@ public:
     }
 
     void PlainStylize(std::string& str){
+        if(!name.empty() && (name != "head" || name == "meta" || name == "style" || name == "script" || name == "link")){
+            return ;
+        }
+
         if(name == "plain"){
             str.append(value);
             return;
@@ -285,6 +289,13 @@ public:
 
         for (size_t i = 0; i < children.size(); i++) {
             children[i]->PlainStylize(str);
+        }
+
+        if(name == "td"){
+            str.append("\t");
+        } else if(name == "tr" || name == "br" || name == "div" || name == "p" || name == "hr" || name == "area" ||
+            name == "h1" || name == "h2" || name == "h3" || name == "h4" || name == "h5" || name == "h6" || name == "h7") {
+            str.append("\n");
         }
     }
 
@@ -314,7 +325,7 @@ public:
         str.append(">");
         
         if (children.empty()) {
-            str.append(value);            
+            str.append(value);
         } else {
             for (size_t i = 0; i < children.size(); i++) {
                 children[i]->HtmlStylize(str);
@@ -325,23 +336,19 @@ public:
     }
 
 private:
-    static shared_ptr<HtmlElement>
-    GetElementById(const shared_ptr<HtmlElement> &element, const std::string &id) {
-        for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
-            if ((*it)->GetAttribute("id") == id)
-                return *it;
+    shared_ptr<HtmlElement> GetElementById(const std::string &id) {
+        for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
+            if ((*it)->GetAttribute("id") == id) return *it;
 
-            shared_ptr<HtmlElement> r = GetElementById(*it, id);
-            if (r)
-                return r;
+            shared_ptr<HtmlElement> r = (*it)->GetElementById(id);
+            if (r) return r;
         }
 
         return shared_ptr<HtmlElement>();
     }
 
-    static void GetElementByClassName(const shared_ptr<HtmlElement> &element, const std::string &name,
-                                      std::set<shared_ptr<HtmlElement> > &result) {
-        for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
+    void GetElementByClassName(const std::string &name, std::set<shared_ptr<HtmlElement> > &result) {
+        for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
             std::set<std::string> attr_class = SplitClassName((*it)->GetAttribute("class"));
             std::set<std::string> class_name = SplitClassName(name);
 
@@ -356,17 +363,16 @@ private:
                 result.insert(*it);
             }
 
-            GetElementByClassName(*it, name, result);
+            (*it)->GetElementByClassName(name, result);
         }
     }
 
-    static void GetElementByTagName(const shared_ptr<HtmlElement> &element, const std::string &name,
-                                    std::set<shared_ptr<HtmlElement> > &result) {
-        for (HtmlElement::ChildIterator it = element->children.begin(); it != element->children.end(); ++it) {
+    void GetElementByTagName(const std::string &name, std::set<shared_ptr<HtmlElement> > &result) {
+        for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
             if ((*it)->name == name)
                 result.insert(*it);
 
-            GetElementByTagName(*it, name, result);
+            (*it)->GetElementByTagName(name, result);
         }
     }
 
@@ -493,19 +499,15 @@ public:
             : root_(root) {}
 
     shared_ptr<HtmlElement> GetElementById(const std::string &id) {
-        return HtmlElement::GetElementById(root_, id);
+        return root_->GetElementById(id);
     }
 
     std::set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
-        std::set<shared_ptr<HtmlElement> > result;
-        HtmlElement::GetElementByClassName(root_, name, result);
-        return result;
+        return root_->GetElementByClassName(name);
     }
 
     std::set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
-        std::set<shared_ptr<HtmlElement> > result;
-        HtmlElement::GetElementByTagName(root_, name, result);
-        return result;
+        return root_->GetElementByTagName(name);
     }
 
     std::set<shared_ptr<HtmlElement> > SelectElement(const std::string& rule){
@@ -519,9 +521,11 @@ public:
     }
 
     std::string html() {
-        std::string s;
-        root_->HtmlStylize(s);
-        return s;
+        return root_->html();
+    }
+
+    std::string text() {
+        return root_->text();
     }
 
 private:

@@ -41,7 +41,7 @@ int main() {
         std::cout << "ok" << std::endl;
     }
 
-    std::set<shared_ptr<HtmlElement>> cc = doc->GetElementByClassName("//img[@class]");
+    std::set<shared_ptr<HtmlElement>> cc = doc->SelectElement("//img[@class]");
     if(cc.empty()){
         std::cout << "wrong" << std::endl;
     } else {
