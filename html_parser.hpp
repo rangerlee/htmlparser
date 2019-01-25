@@ -87,7 +87,14 @@ public:
     }
 
     shared_ptr<HtmlElement> GetElementById(const std::string &id) {
-        return GetElementById(id);
+        for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
+            if ((*it)->GetAttribute("id") == id) return *it;
+
+            shared_ptr<HtmlElement> r = (*it)->GetElementById(id);
+            if (r) return r;
+        }
+
+        return shared_ptr<HtmlElement>();
     }
 
     std::set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
@@ -336,17 +343,6 @@ public:
     }
 
 private:
-    shared_ptr<HtmlElement> GetElementById(const std::string &id) {
-        for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
-            if ((*it)->GetAttribute("id") == id) return *it;
-
-            shared_ptr<HtmlElement> r = (*it)->GetElementById(id);
-            if (r) return r;
-        }
-
-        return shared_ptr<HtmlElement>();
-    }
-
     void GetElementByClassName(const std::string &name, std::set<shared_ptr<HtmlElement> > &result) {
         for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
             std::set<std::string> attr_class = SplitClassName((*it)->GetAttribute("class"));
