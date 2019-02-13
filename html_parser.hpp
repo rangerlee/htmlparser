@@ -16,6 +16,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <unordered_set>
 
 #if __cplusplus <= 199711L
 #if linux
@@ -97,32 +98,32 @@ public:
         return shared_ptr<HtmlElement>();
     }
 
-    std::set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
-        std::set<shared_ptr<HtmlElement> > result;
+    std::unordered_set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
+        std::unordered_set<shared_ptr<HtmlElement> > result;
         GetElementByClassName(name, result);
         return result;
     }
 
-    std::set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
-        std::set<shared_ptr<HtmlElement> > result;
+    std::unordered_set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
+        std::unordered_set<shared_ptr<HtmlElement> > result;
         GetElementByTagName(name, result);
         return result;
     }
 
-    void SelectElement(const std::string& rule, std::set<shared_ptr<HtmlElement> >& result){
+    void SelectElement(const std::string& rule, std::unordered_set<shared_ptr<HtmlElement> >& result){
         if(rule.empty() || rule.at(0) != '/' || name == "plain") return;
         std::string::size_type pos = 0;
         if(rule.size() >= 2 && rule.at(1) == '/') {
-            std::set<shared_ptr<HtmlElement> > temp;
+            std::unordered_set<shared_ptr<HtmlElement> > temp;
             GetAllElement(temp);
             pos = 1;
             std::string next = rule.substr(pos);
             if(next.empty()) {
-                for(std::set<shared_ptr<HtmlElement> >::const_iterator i = temp.begin(); i != temp.end(); i++){
+                for(std::unordered_set<shared_ptr<HtmlElement> >::const_iterator i = temp.begin(); i != temp.end(); i++){
                     result.insert(*i);
                 }
             } else {
-                for(std::set<shared_ptr<HtmlElement> >::const_iterator i = temp.begin(); i != temp.end(); i++){
+                for(std::unordered_set<shared_ptr<HtmlElement> >::const_iterator i = temp.begin(); i != temp.end(); i++){
                     (*i)->SelectElement(next, result);;
                 }
             }
@@ -343,7 +344,7 @@ public:
     }
 
 private:
-    void GetElementByClassName(const std::string &name, std::set<shared_ptr<HtmlElement> > &result) {
+    void GetElementByClassName(const std::string &name, std::unordered_set<shared_ptr<HtmlElement> > &result) {
         for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
             std::set<std::string> attr_class = SplitClassName((*it)->GetAttribute("class"));
             std::set<std::string> class_name = SplitClassName(name);
@@ -363,7 +364,7 @@ private:
         }
     }
 
-    void GetElementByTagName(const std::string &name, std::set<shared_ptr<HtmlElement> > &result) {
+    void GetElementByTagName(const std::string &name, std::unordered_set<shared_ptr<HtmlElement> > &result) {
         for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
             if ((*it)->name == name)
                 result.insert(*it);
@@ -372,8 +373,8 @@ private:
         }
     }
 
-    void GetAllElement(std::set<shared_ptr<HtmlElement> >& result){
-        for (int i = 0; i < children.size(); ++i) {
+    void GetAllElement(std::unordered_set<shared_ptr<HtmlElement> >& result){
+        for (size_t i = 0; i < children.size(); ++i) {
             children[i]->GetAllElement(result);
             result.insert(children[i]);
         }
@@ -498,16 +499,16 @@ public:
         return root_->GetElementById(id);
     }
 
-    std::set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
+    std::unordered_set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
         return root_->GetElementByClassName(name);
     }
 
-    std::set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
+    std::unordered_set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
         return root_->GetElementByTagName(name);
     }
 
-    std::set<shared_ptr<HtmlElement> > SelectElement(const std::string& rule){
-        std::set<shared_ptr<HtmlElement> > result;
+    std::unordered_set<shared_ptr<HtmlElement> > SelectElement(const std::string& rule){
+        std::unordered_set<shared_ptr<HtmlElement> > result;
         HtmlElement::ChildIterator it = root_->ChildBegin();
         for(; it != root_->ChildEnd(); it++){
             (*it)->SelectElement(rule, result);
@@ -694,7 +695,7 @@ private:
                         index += 2;
                         std::string selfname = self->name + ">";
                         if (strncmp(stream_ + index, selfname.c_str(), selfname.size())) {
-                            int pre = index;
+                            size_t pre = index;
                             index = SkipUntil(index, ">");
                             std::string value;
                             if (index > (pre + 1))

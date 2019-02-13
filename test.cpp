@@ -5,7 +5,7 @@ int main() {
     HtmlParser parser;
     shared_ptr<HtmlDocument> doc = parser.Parse(data.c_str(), data.size());
 
-    std::set<shared_ptr<HtmlElement>> x = doc->GetElementByClassName("x");
+    std::unordered_set<shared_ptr<HtmlElement>> x = doc->GetElementByClassName("x");
     shared_ptr<HtmlElement> b = doc->GetElementById("b");
     
     if(!x.empty()){
@@ -32,16 +32,16 @@ int main() {
 
     data = "<html><img class=\"aa bb cc\"><br class=\"xx yy zz\"></html>";
     doc = parser.Parse(data.c_str(), data.size());
-    std::set<shared_ptr<HtmlElement>> ab = doc->GetElementByClassName("aa bb");
-    std::set<shared_ptr<HtmlElement>> abc = doc->GetElementByClassName("aa cc bb");
-    std::set<shared_ptr<HtmlElement>> xz = doc->GetElementByClassName("xx zz");
+    std::unordered_set<shared_ptr<HtmlElement>> ab = doc->GetElementByClassName("aa bb");
+    std::unordered_set<shared_ptr<HtmlElement>> abc = doc->GetElementByClassName("aa cc bb");
+    std::unordered_set<shared_ptr<HtmlElement>> xz = doc->GetElementByClassName("xx zz");
     if(ab.empty() || abc.empty() || xz.empty()){
         std::cout << "wrong" << std::endl;
     } else {
         std::cout << "ok" << std::endl;
     }
 
-    std::set<shared_ptr<HtmlElement>> cc = doc->SelectElement("//img[@class]");
+    std::unordered_set<shared_ptr<HtmlElement>> cc = doc->SelectElement("//img[@class]");
     if(cc.empty()){
         std::cout << "wrong" << std::endl;
     } else {
