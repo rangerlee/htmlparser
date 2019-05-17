@@ -286,7 +286,7 @@ public:
     }
 
     void PlainStylize(std::string& str){
-        if(name.empty() || name == "head" || name == "meta" || name == "style" || name == "script" || name == "link"){
+        if(name == "head" || name == "meta" || name == "style" || name == "script" || name == "link"){
             return ;
         }
 
@@ -295,15 +295,19 @@ public:
             return;
         }
 
-        for (size_t i = 0; i < children.size(); i++) {
+        for (size_t i = 0; i < children.size();) {
             children[i]->PlainStylize(str);
-        }
 
-        if(name == "td"){
-            str.append("\t");
-        } else if(name == "tr" || name == "br" || name == "div" || name == "p" || name == "hr" || name == "area" ||
-            name == "h1" || name == "h2" || name == "h3" || name == "h4" || name == "h5" || name == "h6" || name == "h7") {
-            str.append("\n");
+            if (++i < children.size()) {
+                std::string ele = children[i]->GetName();
+                if (ele == "td") {
+                    str.append("\t");
+                }
+                else if (ele == "tr" || ele == "br" || ele == "div" || ele == "p" || ele == "hr" || ele == "area" ||
+                  ele == "h1" || ele == "h2" || ele == "h3" || ele == "h4" || ele == "h5" || ele == "h6" || ele == "h7") {
+                    str.append("\n");
+                }
+            }
         }
     }
 
