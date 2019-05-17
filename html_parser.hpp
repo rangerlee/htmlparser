@@ -286,7 +286,7 @@ public:
     }
 
     void PlainStylize(std::string& str){
-        if(!name.empty() && (name != "head" || name == "meta" || name == "style" || name == "script" || name == "link")){
+        if(name.empty() || name == "head" || name == "meta" || name == "style" || name == "script" || name == "link"){
             return ;
         }
 
@@ -707,6 +707,8 @@ private:
                             while (parent) {
                                 if (parent->name == value) {
                                     std::cerr << "WARN : element not closed <" << self->name << "> " << std::endl;
+                                    self->Parse(attr);
+                                    element->children.push_back(self);
                                     return pre - 2;
                                 }
 
