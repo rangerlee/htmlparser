@@ -98,33 +98,33 @@ public:
         return shared_ptr<HtmlElement>();
     }
 
-    std::unordered_set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
-        std::unordered_set<shared_ptr<HtmlElement> > result;
+    std::vector<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
+        std::vector<shared_ptr<HtmlElement> > result;
         GetElementByClassName(name, result);
         return result;
     }
 
-    std::unordered_set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
-        std::unordered_set<shared_ptr<HtmlElement> > result;
+    std::vector<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
+        std::vector<shared_ptr<HtmlElement> > result;
         GetElementByTagName(name, result);
         return result;
     }
 
-    void SelectElement(const std::string& rule, std::unordered_set<shared_ptr<HtmlElement> >& result){
+    void SelectElement(const std::string& rule, std::vector<shared_ptr<HtmlElement> >& result){
         if(rule.empty() || rule.at(0) != '/' || name == "plain") return;
         std::string::size_type pos = 0;
         if(rule.size() >= 2 && rule.at(1) == '/') {
-            std::unordered_set<shared_ptr<HtmlElement> > temp;
+            std::vector<shared_ptr<HtmlElement> > temp;
             GetAllElement(temp);
             pos = 1;
             std::string next = rule.substr(pos);
             if(next.empty()) {
-                for(std::unordered_set<shared_ptr<HtmlElement> >::const_iterator i = temp.begin(); i != temp.end(); i++){
-                    result.insert(*i);
+                for(size_t i = 0; i < temp.size(); i++){
+                    InsertIfNotExists(result, temp[i]);
                 }
             } else {
-                for(std::unordered_set<shared_ptr<HtmlElement> >::const_iterator i = temp.begin(); i != temp.end(); i++){
-                    (*i)->SelectElement(next, result);;
+                for(size_t i = 0; i < temp.size(); i++){
+                    temp[i]->SelectElement(next, result);;
                 }
             }
         } else {
@@ -253,7 +253,7 @@ public:
             std::string next = rule.substr(pos);
             if(matched) {
                 if(next.empty())
-                    result.insert(shared_from_this());
+                    InsertIfNotExists(result, shared_from_this());
                 else {
                     for(ChildIterator it = ChildBegin(); it != ChildEnd(); it++){
                         (*it)->SelectElement(next, result);
@@ -348,7 +348,7 @@ public:
     }
 
 private:
-    void GetElementByClassName(const std::string &name, std::unordered_set<shared_ptr<HtmlElement> > &result) {
+    void GetElementByClassName(const std::string &name, std::vector<shared_ptr<HtmlElement> > &result) {
         for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
             std::set<std::string> attr_class = SplitClassName((*it)->GetAttribute("class"));
             std::set<std::string> class_name = SplitClassName(name);
@@ -361,26 +361,26 @@ private:
             }
 
             if(iter == class_name.end()){
-                result.insert(*it);
+                InsertIfNotExists(result, *it);
             }
 
             (*it)->GetElementByClassName(name, result);
         }
     }
 
-    void GetElementByTagName(const std::string &name, std::unordered_set<shared_ptr<HtmlElement> > &result) {
+    void GetElementByTagName(const std::string &name, std::vector<shared_ptr<HtmlElement> > &result) {
         for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
             if ((*it)->name == name)
-                result.insert(*it);
+                InsertIfNotExists(result, *it);
 
             (*it)->GetElementByTagName(name, result);
         }
     }
 
-    void GetAllElement(std::unordered_set<shared_ptr<HtmlElement> >& result){
+    void GetAllElement(std::vector<shared_ptr<HtmlElement> >& result){
         for (size_t i = 0; i < children.size(); ++i) {
+            InsertIfNotExists(result, children[i]);
             children[i]->GetAllElement(result);
-            result.insert(children[i]);
         }
     }
 
@@ -482,6 +482,14 @@ private:
         return class_names;
     }
 
+    static void InsertIfNotExists(std::vector<std::shared_ptr<HtmlElement>>& vec, const std::shared_ptr<HtmlElement>& ele){
+        for(size_t i = 0; i < vec.size(); i++){
+            if(vec[i] == ele) return;
+        }
+
+        vec.push_back(ele);
+    }
+
 private:
     std::string name;
     std::string value;
@@ -503,16 +511,16 @@ public:
         return root_->GetElementById(id);
     }
 
-    std::unordered_set<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
+    std::vector<shared_ptr<HtmlElement> > GetElementByClassName(const std::string &name) {
         return root_->GetElementByClassName(name);
     }
 
-    std::unordered_set<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
+    std::vector<shared_ptr<HtmlElement> > GetElementByTagName(const std::string &name) {
         return root_->GetElementByTagName(name);
     }
 
-    std::unordered_set<shared_ptr<HtmlElement> > SelectElement(const std::string& rule){
-        std::unordered_set<shared_ptr<HtmlElement> > result;
+    std::vector<shared_ptr<HtmlElement> > SelectElement(const std::string& rule){
+        std::vector<shared_ptr<HtmlElement> > result;
         HtmlElement::ChildIterator it = root_->ChildBegin();
         for(; it != root_->ChildEnd(); it++){
             (*it)->SelectElement(rule, result);
