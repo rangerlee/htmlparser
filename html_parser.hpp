@@ -16,6 +16,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <algorithm>
 #include <unordered_set>
 
 #if __cplusplus <= 199711L
@@ -35,6 +36,13 @@ using std::enable_shared_from_this;
 using std::shared_ptr;
 using std::weak_ptr;
 #endif
+
+inline void TrimSpace(std::string &str) {
+    str.erase(str.find_last_not_of(" ") + 1);
+    str.erase(0, str.find_first_not_of(" "));
+}
+static const std::string m_closing_tags[] = { "br", "hr", "img", "input", "link", "meta",
+        "area", "base", "col", "command", "embed", "keygen", "param", "source", "track", "wbr"};
 
 /**
  * class HtmlElement
@@ -86,7 +94,41 @@ public:
 
         return "";
     }
-
+    void RemoveAttribute(const std::string &k) {
+        auto it = attribute.find(k);
+        if (it != attribute.end()) {
+            attribute.erase(it);
+        }
+    }
+    void SetAttribute(const std::string &k, std::string val) {
+        attribute[k] = val;
+    }
+    shared_ptr<HtmlElement> Child(size_t index) {
+        if (index < 0) {
+            index = children.size() + index;
+        }
+        if(index < 0 || children.size() <= index) return NULL;
+        return children[index];
+    }
+    shared_ptr<HtmlElement> FirstChild() {
+        return Child(0);
+    }
+    shared_ptr<HtmlElement> LastChild() {
+        return Child(-1);
+    }
+    void AppendChild(shared_ptr<HtmlElement> ele) {
+        children.push_back(ele);
+    }
+    void RemoveChild(const std::shared_ptr<HtmlElement>& ele) {
+        for (size_t i = 0; i < children.size(); ++i) {
+            if(children[i] == ele) {
+                children.erase(children.begin() + i); break;
+            }
+        }
+    }
+    void Remove() {
+        parent.lock()->RemoveChild(shared_from_this());
+    }
     shared_ptr<HtmlElement> GetElementById(const std::string &id) {
         for (HtmlElement::ChildIterator it = children.begin(); it != children.end(); ++it) {
             if ((*it)->GetAttribute("id") == id) return *it;
@@ -310,14 +352,18 @@ public:
             }
         }
     }
-
-    std::string html(){
+    std::string html() {
+        return html(false);
+    }
+    std::string html(bool inner){
         std::string str;
-        HtmlStylize(str);
+        HtmlStylize(str, inner);
         return str;
     }
-
     void HtmlStylize(std::string& str) {
+        HtmlStylize(str, false);
+    }
+    void HtmlStylize(std::string& str, bool inner) {
         if (name.empty()) {
             for (size_t i = 0; i < children.size(); i++) {
                 children[i]->HtmlStylize(str);
@@ -328,14 +374,27 @@ public:
             str.append(value);
             return;
         }
-
-        str.append("<" + name);
-        std::map<std::string, std::string>::const_iterator it = attribute.begin();
-        for (; it != attribute.end(); it++) {
-            str.append(" " + it->first + "=\"" + it->second + "\"");
+        if (!inner) {
+            str.append("<" + name);
+            std::map<std::string, std::string>::const_iterator it = attribute.begin();
+            for (; it != attribute.end(); it++) {
+                std::string att_v = "";
+                for(size_t x = 0; x < it->second.length();++x) {
+                    // Fixed `"` inside attribute
+                    if(it->second[x] == '"' && it->second[x-1] != '\\') {
+                        att_v.append("&quot;");
+                    } else {
+                        att_v.append(1,it->second[x]);
+                    }
+                }
+                str.append(" " + it->first + "=\"" + att_v + "\"");
+            }
+            bool closed = std::find(std::begin(m_closing_tags), std::end(m_closing_tags), name) != std::end(m_closing_tags);
+            if (closed) {
+                str.append("/");
+            }
+            str.append(">");
         }
-        str.append(">");
-        
         if (children.empty()) {
             str.append(value);
         } else {
@@ -344,7 +403,12 @@ public:
             }
         }
 
-        str.append("</" + name + ">");
+        if (!inner) {
+            bool closed = std::find(std::begin(m_closing_tags), std::end(m_closing_tags), name) != std::end(m_closing_tags);
+            if (!closed) {
+                str.append("</" + name + ">");
+            }
+        }
     }
 
 private:
@@ -460,8 +524,7 @@ private:
 
         //trim
         if (!value.empty()) {
-            value.erase(0, value.find_first_not_of(" "));
-            value.erase(value.find_last_not_of(" ") + 1);
+            TrimSpace(value);
         }
     }
 
@@ -528,13 +591,18 @@ public:
 
         return result;
     }
-
     std::string html() {
-        return root_->html();
+        return html(false);
+    }
+    std::string html(bool inner) {
+        return root_->html(inner);
     }
 
     std::string text() {
         return root_->text();
+    }
+    void RemoveChild(const std::shared_ptr<HtmlElement>& ele) {
+        root_->RemoveChild(ele);
     }
 
 private:
@@ -548,9 +616,7 @@ private:
 class HtmlParser {
 public:
     HtmlParser() {
-        static const std::string token[] = { "br", "hr", "img", "input", "link", "meta",
-        "area", "base", "col", "command", "embed", "keygen", "param", "source", "track", "wbr"};
-        self_closing_tags_.insert(token, token + sizeof(token) / sizeof(token[0]));
+        self_closing_tags_.insert(m_closing_tags, m_closing_tags + sizeof(m_closing_tags) / sizeof(m_closing_tags[0]));
     }
 
     /**
@@ -560,7 +626,30 @@ public:
      * @return html document object
      */
     shared_ptr<HtmlDocument> Parse(const char *data, size_t len) {
-        stream_ = data;
+        // Convert all tagname to lower
+        char * _data = const_cast<char *>(data);
+        char ch;
+        size_t i = 0, state = -1;
+        while(i < len) {
+            ch = _data[i];
+            if(ch == '<') {
+                state = 0;
+                ++i;
+            }
+            if(isspace(ch) || ch == '>') {
+                state = -1;
+                ++i;
+                continue;
+            }
+            if(ch == '/' || ch == '!') {
+                ++i;
+            }
+            if(state == 0 && isalpha(_data[i])) {
+                _data[i] = std::tolower(_data[i]);
+            }
+            ++i;
+        }
+        stream_ = reinterpret_cast<const char *>(_data);
         length_ = len;
         size_t index = 0;
         root_.reset(new HtmlElement());
@@ -614,7 +703,6 @@ private:
 
             ParseElementState state = PARSE_ELEMENT_TAG;
             index++;
-            char split = 0;
             std::string attr;
 
             while (length_ > index) {
