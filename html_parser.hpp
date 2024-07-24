@@ -18,7 +18,7 @@
 #include <set>
 #include <unordered_set>
 
-#if __cplusplus <= 199711L
+#if __cplusplus < 199711L
 #if linux
 #include <tr1/memory>
 #else
@@ -408,7 +408,8 @@ private:
                         std::cerr << "WARN : attribute unexpected " << input << std::endl;
                     } else if (input == ' ') {
                         if (!k.empty()) {
-                            attribute[k] = v;
+                            if (!attribute.count(k))
+                                attribute[k] = v;
                             k.clear();
                         }
                     } else if (input == '=') {
@@ -422,7 +423,8 @@ private:
                 case PARSE_ATTR_VALUE_BEGIN:{
                     if (input == '\t' || input == '\r' || input == '\n' || input == ' ') {
                         if (!k.empty()) {
-                            attribute[k] = v;
+                            if (!attribute.count(k))
+                                attribute[k] = v;
                             k.clear();
                         }
                         state = PARSE_ATTR_KEY;
@@ -440,7 +442,8 @@ private:
 
                 case PARSE_ATTR_VALUE_END: {
                     if((quota && input == split) || (!quota && (input == '\t' || input == '\r' || input == '\n' || input == ' '))) {
-                        attribute[k] = v;
+                        if (!attribute.count(k))
+                            attribute[k] = v;
                         k.clear();
                         v.clear();
                         state = PARSE_ATTR_KEY;
@@ -455,7 +458,8 @@ private:
         }
 
         if(!k.empty()){
-            attribute[k] = v;
+            if (!attribute.count(k))
+                attribute[k] = v;
         }
 
         //trim
